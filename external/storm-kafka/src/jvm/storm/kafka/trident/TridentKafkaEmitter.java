@@ -152,7 +152,13 @@ public class TridentKafkaEmitter {
             SimpleConsumer consumer = _connections.register(partition);
             long offset = (Long) meta.get("offset");
             long nextOffset = (Long) meta.get("nextOffset");
-            ByteBufferMessageSet msgs = fetchMessages(consumer, partition, offset);
+            ByteBufferMessageSet msgs;
+            try {
+            	msgs = fetchMessages(consumer, partition, offset);
+            } catch(FailedFetchException e) {
+            	LOG.error(String.format("Could not fetch messages for offset: %d", offset), e);
+            	return;
+            }
             for (MessageAndOffset msg : msgs) {
                 if (offset == nextOffset) {
                     break;
