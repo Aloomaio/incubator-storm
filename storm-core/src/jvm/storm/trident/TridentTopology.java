@@ -110,30 +110,52 @@ public class TridentTopology {
 //        return addNode(n);
 //    }
     
-     public Stream newStream(String txId, IRichSpout spout) {
-        return newStream(txId, new RichSpoutBatchExecutor(spout));
+    public Stream newStream(String txId, IRichSpout spout) {
+        return newStream(txId, null, new RichSpoutBatchExecutor(spout));
+    }
+    
+    public Stream newStream(String txId, String spoutName, IRichSpout spout) {
+        return newStream(txId, spoutName, new RichSpoutBatchExecutor(spout));
     }
     
     public Stream newStream(String txId, IBatchSpout spout) {
-        Node n = new SpoutNode(getUniqueStreamId(), spout.getOutputFields(), txId, spout, SpoutNode.SpoutType.BATCH);
+        Node n = new SpoutNode(getUniqueStreamId(), null, spout.getOutputFields(), txId, spout, SpoutNode.SpoutType.BATCH);
+        return addNode(n);
+    }
+    
+    public Stream newStream(String txId, String spoutName, IBatchSpout spout) {
+        Node n = new SpoutNode(getUniqueStreamId(), spoutName, spout.getOutputFields(), txId, spout, SpoutNode.SpoutType.BATCH);
         return addNode(n);
     }
     
     public Stream newStream(String txId, ITridentSpout spout) {
-        Node n = new SpoutNode(getUniqueStreamId(), spout.getOutputFields(), txId, spout, SpoutNode.SpoutType.BATCH);
+        Node n = new SpoutNode(getUniqueStreamId(), null, spout.getOutputFields(), txId, spout, SpoutNode.SpoutType.BATCH);
+        return addNode(n);
+    }
+    
+    public Stream newStream(String txId, String spoutName, ITridentSpout spout) {
+        Node n = new SpoutNode(getUniqueStreamId(), spoutName, spout.getOutputFields(), txId, spout, SpoutNode.SpoutType.BATCH);
         return addNode(n);
     }
     
     public Stream newStream(String txId, IPartitionedTridentSpout spout) {
-        return newStream(txId, new PartitionedTridentSpoutExecutor(spout));
+        return newStream(txId, null, new PartitionedTridentSpoutExecutor(spout));
+    }
+    
+    public Stream newStream(String txId, String spoutName, IPartitionedTridentSpout spout) {
+        return newStream(txId, spoutName, new PartitionedTridentSpoutExecutor(spout));
     }
     
     public Stream newStream(String txId, IOpaquePartitionedTridentSpout spout) {
-        return newStream(txId, new OpaquePartitionedTridentSpoutExecutor(spout));
+        return newStream(txId, null, new OpaquePartitionedTridentSpoutExecutor(spout));
+    }
+    
+    public Stream newStream(String txId, String spoutName, IOpaquePartitionedTridentSpout spout) {
+        return newStream(txId, spoutName, new OpaquePartitionedTridentSpoutExecutor(spout));
     }
     
     public Stream newDRPCStream(String function) {
-        return newDRPCStream(new DRPCSpout(function));
+        return newDRPCStream(new DRPCSpout(function), null);
     }
 
     public Stream newDRPCStream(String function, ILocalDRPC server) {
@@ -143,14 +165,14 @@ public class TridentTopology {
         } else {
             spout = new DRPCSpout(function, server);
         }
-        return newDRPCStream(spout);
+        return newDRPCStream(spout, null);
     }
     
-    private Stream newDRPCStream(DRPCSpout spout) {
+    private Stream newDRPCStream(DRPCSpout spout, String spoutName) {
         // TODO: consider adding a shuffle grouping after the spout to avoid so much routing of the args/return-info all over the place
         // (at least until its possible to just pack bolt logic into the spout itself)
 
-        Node n = new SpoutNode(getUniqueStreamId(), TridentUtils.getSingleOutputStreamFields(spout), null, spout, SpoutNode.SpoutType.DRPC);
+        Node n = new SpoutNode(getUniqueStreamId(), spoutName, TridentUtils.getSingleOutputStreamFields(spout), null, spout, SpoutNode.SpoutType.DRPC);
         Stream nextStream = addNode(n);
         // later on, this will be joined back with return-info and all the results
         return nextStream.project(new Fields("args"));
@@ -509,8 +531,12 @@ public class TridentTopology {
         Map<Node, String> ret = new HashMap();
         int ctr = 0;
         for(SpoutNode n: spoutNodes) {
-            ret.put(n, "spout" + ctr);
-            ctr++;
+            if (null == n.name) {
+                ret.put(n, "spout" + ctr);
+                ctr++;
+            } else {
+                ret.put(n, n.name);
+            }
         }
         return ret;
     }
