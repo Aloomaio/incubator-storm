@@ -64,7 +64,7 @@ public class AuthUtils {
 
     /**
      * Construct a transport plugin per storm configuration
-     * @param conf storm configuration
+     * @param storm_conf storm configuration
      * @return
      */
     public static ITransportPlugin GetTransportPlugin(Map storm_conf, Configuration login_conf) {

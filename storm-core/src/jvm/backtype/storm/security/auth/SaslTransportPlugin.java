@@ -49,7 +49,7 @@ public abstract class SaslTransportPlugin implements ITransportPlugin {
 
     /**
      * Invoked once immediately after construction
-     * @param conf Storm configuration 
+     * @param storm_conf Storm configuration 
      * @param login_conf login configuration
      */
     public void prepare(Map storm_conf, Configuration login_conf) {        
