@@ -531,12 +531,8 @@ public class TridentTopology {
         Map<Node, String> ret = new HashMap();
         int ctr = 0;
         for(SpoutNode n: spoutNodes) {
-            if (null == n.name) {
-                ret.put(n, "spout" + ctr);
-                ctr++;
-            } else {
-                ret.put(n, n.name);
-            }
+            ret.put(n, "spout" + ctr + (null == n.name ? "" : "-" + n.name));
+            ctr++;
         }
         return ret;
     }
