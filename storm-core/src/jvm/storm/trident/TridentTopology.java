@@ -157,15 +157,23 @@ public class TridentTopology {
     public Stream newDRPCStream(String function) {
         return newDRPCStream(new DRPCSpout(function), null);
     }
-
+    
+    public Stream newDRPCStream(String function, String spoutName) {
+        return newDRPCStream(new DRPCSpout(function), spoutName);
+    }
+    
     public Stream newDRPCStream(String function, ILocalDRPC server) {
+        return newDRPCStream(function, server, null);
+    }
+
+    public Stream newDRPCStream(String function, ILocalDRPC server, String spoutName) {
         DRPCSpout spout;
         if(server==null) {
             spout = new DRPCSpout(function);
         } else {
             spout = new DRPCSpout(function, server);
         }
-        return newDRPCStream(spout, null);
+        return newDRPCStream(spout, spoutName);
     }
     
     private Stream newDRPCStream(DRPCSpout spout, String spoutName) {
