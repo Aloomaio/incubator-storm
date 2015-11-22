@@ -32,7 +32,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.github.aloomaio</groupId>
+            <groupId>com.github.aloomaio</groupId>
             <artifactId>storm-core</artifactId>
             <version>${project.version}</version>
         </dependency>
