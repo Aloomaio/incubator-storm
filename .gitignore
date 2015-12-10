@@ -57,3 +57,6 @@ hs_err_pid*
 
 # ignore vagrant files
 /integration-test/config/.vagrant/
+*.releaseBackup
+
+release.properties
