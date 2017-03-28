@@ -17,19 +17,19 @@
  */
 package org.apache.storm.hdfs.bolt;
 
-import backtype.storm.Config;
-import backtype.storm.LocalCluster;
-import backtype.storm.StormSubmitter;
-import backtype.storm.spout.SpoutOutputCollector;
-import backtype.storm.task.OutputCollector;
-import backtype.storm.task.TopologyContext;
-import backtype.storm.topology.OutputFieldsDeclarer;
-import backtype.storm.topology.TopologyBuilder;
-import backtype.storm.topology.base.BaseRichBolt;
-import backtype.storm.topology.base.BaseRichSpout;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Tuple;
-import backtype.storm.tuple.Values;
+import org.apache.storm.Config;
+import org.apache.storm.LocalCluster;
+import org.apache.storm.StormSubmitter;
+import org.apache.storm.spout.SpoutOutputCollector;
+import org.apache.storm.task.OutputCollector;
+import org.apache.storm.task.TopologyContext;
+import org.apache.storm.topology.OutputFieldsDeclarer;
+import org.apache.storm.topology.TopologyBuilder;
+import org.apache.storm.topology.base.BaseRichBolt;
+import org.apache.storm.topology.base.BaseRichSpout;
+import org.apache.storm.tuple.Fields;
+import org.apache.storm.tuple.Tuple;
+import org.apache.storm.tuple.Values;
 import org.apache.storm.hdfs.bolt.format.*;
 import org.apache.storm.hdfs.bolt.rotation.FileRotationPolicy;
 import org.apache.storm.hdfs.bolt.rotation.FileSizeRotationPolicy;
@@ -39,7 +39,10 @@ import org.apache.storm.hdfs.bolt.sync.SyncPolicy;
 import org.apache.storm.hdfs.common.rotation.MoveFileAction;
 
 import org.apache.hadoop.io.SequenceFile;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -63,24 +66,28 @@ public class SequenceFileTopology {
         FileRotationPolicy rotationPolicy = new FileSizeRotationPolicy(5.0f, Units.MB);
 
         FileNameFormat fileNameFormat = new DefaultFileNameFormat()
-                .withPath("/source/")
+                .withPath("/tmp/source/")
                 .withExtension(".seq");
 
         // create sequence format instance.
         DefaultSequenceFormat format = new DefaultSequenceFormat("timestamp", "sentence");
 
+        Yaml yaml = new Yaml();
+        InputStream in = new FileInputStream(args[1]);
+        Map<String, Object> yamlConf = (Map<String, Object>) yaml.load(in);
+        in.close();
+        config.put("hdfs.config", yamlConf);
+
         SequenceFileBolt bolt = new SequenceFileBolt()
                 .withFsUrl(args[0])
+                .withConfigKey("hdfs.config")
                 .withFileNameFormat(fileNameFormat)
                 .withSequenceFormat(format)
                 .withRotationPolicy(rotationPolicy)
                 .withSyncPolicy(syncPolicy)
                 .withCompressionType(SequenceFile.CompressionType.RECORD)
                 .withCompressionCodec("deflate")
-                .addRotationAction(new MoveFileAction().toDestination("/dest/"));
-
-
-
+                .addRotationAction(new MoveFileAction().toDestination("/tmp/dest/"));
 
         TopologyBuilder builder = new TopologyBuilder();
 
@@ -90,7 +97,7 @@ public class SequenceFileTopology {
                 .shuffleGrouping(SENTENCE_SPOUT_ID);
 
 
-        if (args.length == 1) {
+        if (args.length == 2) {
             LocalCluster cluster = new LocalCluster();
 
             cluster.submitTopology(TOPOLOGY_NAME, config, builder.createTopology());
@@ -98,8 +105,10 @@ public class SequenceFileTopology {
             cluster.killTopology(TOPOLOGY_NAME);
             cluster.shutdown();
             System.exit(0);
-        } else if(args.length == 2) {
-            StormSubmitter.submitTopology(args[1], config, builder.createTopology());
+        } else if(args.length == 3) {
+            StormSubmitter.submitTopology(args[2], config, builder.createTopology());
+        } else{
+            System.out.println("Usage: SequenceFileTopology [hdfs url] [hdfs yaml config file] <topology name>");
         }
     }
 

@@ -66,9 +66,11 @@ extern FILE *LOGFILE;
 // the log file for error messages
 extern FILE *ERRORFILE;
 
-int setup_stormdist_dir(const char* local_dir);
+int setup_dir_permissions(const char* local_dir, int for_blob_permission);
 
 int exec_as_user(const char * working_dir, const char * args);
+
+int fork_as_user(const char * working_dir, const char * args);
 
 // delete a directory (or file) recursively as the user. The directory
 // could optionally be relative to the baseDir set of directories (if the same

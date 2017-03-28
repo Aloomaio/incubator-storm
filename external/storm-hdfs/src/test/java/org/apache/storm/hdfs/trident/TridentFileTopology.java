@@ -17,23 +17,25 @@
  */
 package org.apache.storm.hdfs.trident;
 
-import backtype.storm.Config;
-import backtype.storm.LocalCluster;
-import backtype.storm.StormSubmitter;
-import backtype.storm.generated.StormTopology;
-import backtype.storm.tuple.Fields;
-import backtype.storm.tuple.Values;
+import org.apache.storm.Config;
+import org.apache.storm.LocalCluster;
+import org.apache.storm.StormSubmitter;
+import org.apache.storm.generated.StormTopology;
+import org.apache.storm.tuple.Fields;
+import org.apache.storm.tuple.Values;
 import org.apache.storm.hdfs.common.rotation.MoveFileAction;
 import org.apache.storm.hdfs.trident.format.*;
 import org.apache.storm.hdfs.trident.rotation.FileRotationPolicy;
 import org.apache.storm.hdfs.trident.rotation.FileSizeRotationPolicy;
-import storm.trident.Stream;
-import storm.trident.TridentState;
-import storm.trident.TridentTopology;
-import storm.trident.operation.BaseFunction;
-import storm.trident.operation.TridentCollector;
-import storm.trident.state.StateFactory;
-import storm.trident.tuple.TridentTuple;
+import org.apache.storm.trident.Stream;
+import org.apache.storm.trident.TridentState;
+import org.apache.storm.trident.TridentTopology;
+import org.apache.storm.trident.state.StateFactory;
+import org.yaml.snakeyaml.Yaml;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.Map;
 
 public class TridentFileTopology {
 
@@ -49,7 +51,7 @@ public class TridentFileTopology {
         Fields hdfsFields = new Fields("sentence", "key");
 
         FileNameFormat fileNameFormat = new DefaultFileNameFormat()
-                .withPath("/trident")
+                .withPath("/tmp/trident")
                 .withPrefix("trident")
                 .withExtension(".txt");
 
@@ -62,7 +64,8 @@ public class TridentFileTopology {
                 .withFileNameFormat(fileNameFormat)
                 .withRecordFormat(recordFormat)
                 .withRotationPolicy(rotationPolicy)
-                .withFsUrl(hdfsUrl);
+                .withFsUrl(hdfsUrl)
+                .withConfigKey("hdfs.config");
 
         StateFactory factory = new HdfsStateFactory().withOptions(options);
 
@@ -75,16 +78,22 @@ public class TridentFileTopology {
     public static void main(String[] args) throws Exception {
         Config conf = new Config();
         conf.setMaxSpoutPending(5);
-        if (args.length == 1) {
+
+        Yaml yaml = new Yaml();
+        InputStream in = new FileInputStream(args[1]);
+        Map<String, Object> yamlConf = (Map<String, Object>) yaml.load(in);
+        in.close();
+        conf.put("hdfs.config", yamlConf);
+
+        if (args.length == 2) {
             LocalCluster cluster = new LocalCluster();
             cluster.submitTopology("wordCounter", conf, buildTopology(args[0]));
             Thread.sleep(120 * 1000);
-        }
-        else if(args.length == 2) {
+        } else if(args.length == 3) {
             conf.setNumWorkers(3);
-            StormSubmitter.submitTopology(args[1], conf, buildTopology(args[0]));
+            StormSubmitter.submitTopology(args[2], conf, buildTopology(args[0]));
         } else{
-            System.out.println("Usage: TridentFileTopology <hdfs url> [topology name]");
+            System.out.println("Usage: TridentFileTopology [hdfs url] [hdfs yaml config file] <topology name>");
         }
     }
 }
