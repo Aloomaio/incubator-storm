@@ -27,7 +27,7 @@
 
     <groupId>org.apache.storm</groupId>
     <artifactId>storm</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
     <packaging>pom</packaging>
     <name>Storm</name>
     <description>Distributed and fault-tolerant realtime computation</description>
@@ -184,7 +184,7 @@
     <scm>
         <connection>scm:git:https://git-wip-us.apache.org/repos/asf/storm.git</connection>
         <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/storm.git</developerConnection>
-        <tag>v1.0.2</tag>
+        <tag>v1.0.3</tag>
         <url>https://git-wip-us.apache.org/repos/asf/storm</url>
     </scm>
 
@@ -261,6 +261,8 @@
         <java.unit.test.include>**/Test*.java, **/*Test.java, **/*TestCase.java</java.unit.test.include>    <!--maven surefire plugin default test list-->
         <!-- by default the clojure test set are all clojure tests that are not integration tests. This property is overridden in the profiles -->
         <clojure.test.set>!integration.*</clojure.test.set>
+        <qpid.version>0.32</qpid.version>
+        <eventhubs.client.version>1.0.1</eventhubs.client.version>
     </properties>
 
     <modules>
@@ -286,8 +288,11 @@
         <module>external/storm-cassandra</module>
         <module>external/storm-mqtt</module>
         <module>external/storm-mongodb</module>
-        <module>examples/storm-starter</module>
         <module>external/storm-kafka-client</module>
+        <module>external/storm-jms</module>
+
+        <!-- examples -->
+        <module>examples/storm-starter</module>
     </modules>
 
     <dependencies>
@@ -329,6 +334,8 @@
                                 <exclude>**/metastore_db/**</exclude>
                                 <!-- anything written into build should be ignored -->
                                 <exclude>**/build/**</exclude>
+                                <!-- logs generated during test -->
+                                <exclude>**/logs/**</exclude>
 
                                 <!-- exclude CHANGELOG, VERSION, AND TODO files -->
                                 <exclude>**/CHANGELOG.md</exclude>
@@ -378,6 +385,9 @@
 
                                 <!-- Avro Serializer Test Resource -->
                                 <exclude>**/src/test/resources/FixedAvroSerializer.config</exclude>
+
+                                <!-- Vagrant related files -->
+                                <exclude>integration-test/config/.vagrant/**</exclude>
                             </excludes>
                         </configuration>
                     </plugin>

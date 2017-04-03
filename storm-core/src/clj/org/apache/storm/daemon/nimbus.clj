@@ -276,7 +276,7 @@
   (let [rebalance-options (:topology-action-options storm-base)]
     (.update-storm! (:storm-cluster-state nimbus)
       storm-id
-        (-> {:topology-action-options nil}
+        (-> {}
           (assoc-non-nil :component->executors (:component->executors rebalance-options))
           (assoc-non-nil :num-workers (:num-workers rebalance-options)))))
   (mk-assignments nimbus :scratch-topology-id storm-id))
@@ -320,7 +320,9 @@
                  :kill (kill-transition nimbus storm-id)
                  :do-rebalance (fn []
                                  (do-rebalance nimbus storm-id status storm-base)
-                                 (:type (:prev-status storm-base)))
+                                 {:status {:type (:type (:prev-status storm-base))}
+                                  :prev-status :rebalancing
+                                  :topology-action-options nil})
                  }})
 
 (defn transition!
@@ -373,7 +375,7 @@
 (defn delay-event [nimbus storm-id delay-secs event]
   (log-message "Delaying event " event " for " delay-secs " secs for " storm-id)
   (schedule (:timer nimbus)
-            delay-secs
+            (or delay-secs 0)
             #(try (transition! nimbus storm-id event false)
                (catch Exception e (log-error e "Exception while trying transition for " storm-id " and event " event)))))
 
@@ -641,14 +643,16 @@
         storm-conf (read-storm-conf-as-nimbus storm-id blob-store)
         topology (read-storm-topology-as-nimbus storm-id blob-store)
         task->component (storm-task-info topology storm-conf)]
-    (->> (storm-task-info topology storm-conf)
-         reverse-map
-         (map-val sort)
-         (join-maps component->executors)
-         (map-val (partial apply partition-fixed))
-         (mapcat second)
-         (map to-executor-id)
-         )))
+    (if (nil? component->executors)
+      []
+      (->> (storm-task-info topology storm-conf)
+           reverse-map
+           (map-val sort)
+           (join-maps component->executors)
+           (map-val (partial apply partition-fixed))
+           (mapcat second)
+           (map to-executor-id)
+           ))))
 
 (defn- compute-executor->component [nimbus storm-id]
   (let [conf (:conf nimbus)
@@ -1020,12 +1024,12 @@
            impersonation-authorizer (:impersonation-authorization-handler nimbus)
            ctx (or context (ReqContext/context))
            check-conf (if storm-conf storm-conf (if storm-name {TOPOLOGY-NAME storm-name}))]
-       (log-thrift-access (.requestID ctx) (.remoteAddress ctx) (.principal ctx) operation)
        (if (.isImpersonating ctx)
          (do
           (log-warn "principal: " (.realPrincipal ctx) " is trying to impersonate principal: " (.principal ctx))
           (if impersonation-authorizer
-           (if-not (.permit impersonation-authorizer ctx operation check-conf)
+           (when-not (.permit impersonation-authorizer ctx operation check-conf)
+             (log-thrift-access (.requestID ctx) (.remoteAddress ctx) (.principal ctx) operation storm-name "access-denied")
              (throw (AuthorizationException. (str "principal " (.realPrincipal ctx) " is not authorized to impersonate
                         principal " (.principal ctx) " from host " (.remoteAddress ctx) " Please see SECURITY.MD to learn
                         how to configure impersonation acls."))))
@@ -1034,8 +1038,10 @@
 
        (if aclHandler
          (if-not (.permit aclHandler ctx operation check-conf)
-           (throw (AuthorizationException. (str operation (if storm-name (str " on topology " storm-name)) " is not authorized")))
-           ))))
+           (do
+             (log-thrift-access (.requestID ctx) (.remoteAddress ctx) (.principal ctx) operation storm-name "access-denied")
+             (throw (AuthorizationException. (str operation (if storm-name (str " on topology " storm-name)) " is not authorized"))))
+           (log-thrift-access (.requestID ctx) (.remoteAddress ctx) (.principal ctx) operation storm-name "access-granted")))))
   ([nimbus storm-name storm-conf operation]
      (check-authorization! nimbus storm-name storm-conf operation (ReqContext/context))))
 
@@ -1184,7 +1190,11 @@
       (.deleteBlob blob-store key nimbus-subject))
     (log-debug "Creating list of key entries for blobstore inside zookeeper" all-keys "local" locally-available-active-keys)
     (doseq [key locally-available-active-keys]
-      (.setup-blobstore! storm-cluster-state key (:nimbus-host-port-info nimbus) (get-version-for-key key nimbus-host-port-info conf)))))
+      (try
+        (.setup-blobstore! storm-cluster-state key (:nimbus-host-port-info nimbus) (get-version-for-key key nimbus-host-port-info conf))
+        (catch KeyNotFoundException _
+          ; invalid key, remove it from blobstore
+          (.deleteBlob blob-store key nimbus-subject))))))
 
 (defn- get-errors [storm-cluster-state storm-id component-id]
   (->> (.errors storm-cluster-state storm-id component-id)
@@ -1298,7 +1308,7 @@
                   (when-not (= orig-creds new-creds)
                     (.set-credentials! storm-cluster-state id new-creds topology-conf)
                     ))))))))
-    (log-message "not a leader skipping , credential renweal.")))
+    (log-message "not a leader, skipping credential renewal.")))
 
 (defn validate-topology-size [topo-conf nimbus-conf topology]
   (let [workers-count (get topo-conf TOPOLOGY-WORKERS)
@@ -1725,16 +1735,16 @@
         (mark! nimbus:num-downloadChunk-calls)
         (check-authorization! nimbus nil nil "fileDownload")
         (let [downloaders (:downloaders nimbus)
-              ^BufferFileInputStream is (.get downloaders id)]
+              ^BufferInputStream is (.get downloaders id)]
           (when-not is
             (throw (RuntimeException.
-                    "Could not find input stream for that id")))
+                    "Could not find input stream for id " id)))
           (let [ret (.read is)]
             (.put downloaders id is)
             (when (empty? ret)
+              (.close is)
               (.remove downloaders id))
-            (ByteBuffer/wrap ret)
-            )))
+            (ByteBuffer/wrap ret))))
 
       (^String getNimbusConf [this]
         (mark! nimbus:num-getNimbusConf-calls)
